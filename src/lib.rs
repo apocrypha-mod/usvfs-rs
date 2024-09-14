@@ -7,7 +7,7 @@
 #![feature(arbitrary_self_types_pointers)]
 
 use std::{
-    ffi::{CStr},
+    ffi::CStr,
     fmt::{Display, Formatter},
     ptr, time,
 };
@@ -15,7 +15,7 @@ use std::{
 use libc::{c_int, c_void, size_t};
 use windows::Win32::{
     Security::SECURITY_ATTRIBUTES,
-    System::Threading::{PROCESS_CREATION_FLAGS, PROCESS_INFORMATION, STARTUPINFOW},
+    System::Threading::{PROCESS_INFORMATION, STARTUPINFOW},
 };
 
 macro_rules! widen {
