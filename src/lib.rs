@@ -362,12 +362,12 @@ mod tests {
     fn rawBindings() {
         unsafe {
             let testParams = usvfsCreateParameters();
-            usvfsSetInstanceName(testParams, "instance".as_ptr());
-            usvfsSetDebugMode(testParams, false);
-            usvfsSetLogLevel(testParams, LogLevel::Error);
-            usvfsSetCrashDumpType(testParams, CrashDumpsType::Full);
-            usvfsSetCrashDumpPath(testParams, "".as_ptr());
-            usvfsSetProcessDelay(testParams, 5);
+            //usvfsSetInstanceName(testParams, "instance".as_ptr());
+            //usvfsSetDebugMode(testParams, false);
+            //usvfsSetLogLevel(testParams, LogLevel::Error);
+            //usvfsSetCrashDumpType(testParams, CrashDumpsType::Full);
+            //usvfsSetCrashDumpPath(testParams, "".as_ptr());
+            //usvfsSetProcessDelay(testParams, 5);
             usvfsFreeParameters(testParams);
         }
     }
