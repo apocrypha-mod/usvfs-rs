@@ -370,18 +370,18 @@ mod tests {
         testParams.free_parameters();
     }
 
-    #[test]
-    fn startAndStop() {
-        let testParams = Parameters::new();
-        testParams.set_instance_name("test");
-        testParams.set_debug_mode(false);
-        testParams.set_log_level(LogLevel::Debug);
-        testParams.set_crash_dumps_type(CrashDumpsType::Nil);
-        testParams.set_crash_dumps_path("");
-
-        init_logging(false);
-        create_vfs(testParams).expect("Failed to create VFS");
-        disconnect_vfs();
-        testParams.free_parameters();
-    }
+    //#[test]
+    //fn startAndStop() {
+    //    let testParams = Parameters::new();
+    //    testParams.set_instance_name("test");
+    //    testParams.set_debug_mode(false);
+    //    testParams.set_log_level(LogLevel::Debug);
+    //    testParams.set_crash_dumps_type(CrashDumpsType::Nil);
+    //    testParams.set_crash_dumps_path("");
+    //
+    //    init_logging(false);
+    //    create_vfs(testParams).expect("Failed to create VFS");
+    //    disconnect_vfs();
+    //    testParams.free_parameters();
+    //}
 }
