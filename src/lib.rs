@@ -4,9 +4,10 @@
     non_upper_case_globals,
     dead_code
 )]
+#![feature(arbitrary_self_types_pointers)]
 
 use std::{
-    ffi::{CStr, OsString},
+    ffi::{CStr},
     fmt::{Display, Formatter},
     ptr, time,
 };
@@ -65,27 +66,27 @@ impl Parameters {
         unsafe { usvfsCreateParameters() }
     }
 
-    fn set_instance_name(&mut self, name: &str) {
+    fn set_instance_name(self: *mut Parameters, name: &str) {
         unsafe { usvfsSetInstanceName(self, name.as_ptr()) }
     }
 
-    fn set_debug_mode(&mut self, debug_mode: bool) {
+    fn set_debug_mode(self: *mut Parameters, debug_mode: bool) {
         unsafe { usvfsSetDebugMode(self, debug_mode) }
     }
 
-    fn set_log_level(&mut self, log_level: LogLevel) {
+    fn set_log_level(self: *mut Parameters, log_level: LogLevel) {
         unsafe { usvfsSetLogLevel(self, log_level) }
     }
 
-    fn set_crash_dumps_type(&mut self, dump_type: CrashDumpsType) {
+    fn set_crash_dumps_type(self: *mut Parameters, dump_type: CrashDumpsType) {
         unsafe { usvfsSetCrashDumpType(self, dump_type) }
     }
 
-    fn set_crash_dumps_path(&mut self, path: &str) {
+    fn set_crash_dumps_path(self: *mut Parameters, path: &str) {
         unsafe { usvfsSetCrashDumpPath(self, path.as_ptr()) }
     }
 
-    fn set_process_delay(&mut self, time: time::Duration) {
+    fn set_process_delay(self: *mut Parameters, time: time::Duration) {
         unsafe {
             usvfsSetProcessDelay(
                 self,
@@ -95,9 +96,13 @@ impl Parameters {
             )
         };
     }
+
+    fn free_parameters(self: *mut Parameters) {
+        unsafe { usvfsFreeParameters(self) }
+    }
 }
 
-pub fn create_vfs(params: &Parameters) -> Result<(), ()> {
+pub fn create_vfs(params: *const Parameters) -> Result<(), ()> {
     unsafe {
         match usvfsCreateVFS(params) {
             true => Ok(()),
@@ -106,7 +111,7 @@ pub fn create_vfs(params: &Parameters) -> Result<(), ()> {
     }
 }
 
-pub fn connect_vfs(params: &Parameters) -> Result<(), ()> {
+pub fn connect_vfs(params: *const Parameters) -> Result<(), ()> {
     unsafe {
         match usvfsConnectVfs(params) {
             true => Ok(()),
@@ -347,4 +352,36 @@ extern "C" {
 
     fn usvfsUpdateParameters(p: *mut Parameters);
     fn usvfsVersionString() -> *mut u8;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parameters() {
+        let testParams = Parameters::new();
+        testParams.set_instance_name("testInstance");
+        testParams.set_debug_mode(false);
+        testParams.set_log_level(LogLevel::Debug);
+        testParams.set_crash_dumps_type(CrashDumpsType::Full);
+        testParams.set_crash_dumps_path("");
+        testParams.set_process_delay(time::Duration::new(1, 0));
+        testParams.free_parameters();
+    }
+
+    #[test]
+    fn startAndStop() {
+        let testParams = Parameters::new();
+        testParams.set_instance_name("test");
+        testParams.set_debug_mode(false);
+        testParams.set_log_level(LogLevel::Debug);
+        testParams.set_crash_dumps_type(CrashDumpsType::Nil);
+        testParams.set_crash_dumps_path("");
+
+        init_logging(false);
+        create_vfs(testParams).expect("Failed to create VFS");
+        disconnect_vfs();
+        testParams.free_parameters();
+    }
 }
