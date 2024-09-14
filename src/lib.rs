@@ -7,7 +7,7 @@
 #![feature(arbitrary_self_types_pointers)]
 
 use std::{
-    ffi::CStr,
+    ffi::{CStr, CString},
     fmt::{Display, Formatter},
     ptr, time,
 };
@@ -67,7 +67,10 @@ impl Parameters {
     }
 
     fn set_instance_name(self: *mut Parameters, name: &str) {
-        unsafe { usvfsSetInstanceName(self, name.as_ptr()) }
+        unsafe {
+            let cName = CString::new(name).expect("Invalid C-String");
+            usvfsSetInstanceName(self, cName.as_ptr())
+        }
     }
 
     fn set_debug_mode(self: *mut Parameters, debug_mode: bool) {
@@ -83,7 +86,10 @@ impl Parameters {
     }
 
     fn set_crash_dumps_path(self: *mut Parameters, path: &str) {
-        unsafe { usvfsSetCrashDumpPath(self, path.as_ptr()) }
+        unsafe {
+            let cPath = CString::new(path).expect("Invalid C-String");
+            usvfsSetCrashDumpPath(self, cPath.as_ptr())
+        }
     }
 
     fn set_process_delay(self: *mut Parameters, time: time::Duration) {
@@ -300,11 +306,11 @@ extern "C" {
     fn usvfsDupeParameters(p: *const Parameters) -> *mut Parameters;
     fn usvfsCopyParameters(source: *const Parameters, dest: *mut Parameters);
     fn usvfsFreeParameters(p: *mut Parameters);
-    fn usvfsSetInstanceName(p: *mut Parameters, name: *const u8);
+    fn usvfsSetInstanceName(p: *mut Parameters, name: *const i8);
     fn usvfsSetDebugMode(p: *mut Parameters, debugMode: bool);
     fn usvfsSetLogLevel(p: *mut Parameters, level: LogLevel);
     fn usvfsSetCrashDumpType(p: *mut Parameters, dumpType: CrashDumpsType);
-    fn usvfsSetCrashDumpPath(p: *mut Parameters, path: *const u8);
+    fn usvfsSetCrashDumpPath(p: *mut Parameters, path: *const i8);
     fn usvfsSetProcessDelay(p: *mut Parameters, milliseconds: c_int);
 
     fn usvfsLogLevelToString(lv: LogLevel) -> *const i8;
@@ -362,13 +368,52 @@ mod tests {
     fn rawBindings() {
         unsafe {
             let testParams = usvfsCreateParameters();
-            usvfsSetInstanceName(testParams, "instance".as_ptr());
-            //usvfsSetDebugMode(testParams, false);
-            //usvfsSetLogLevel(testParams, LogLevel::Error);
-            //usvfsSetCrashDumpType(testParams, CrashDumpsType::Full);
-            //usvfsSetCrashDumpPath(testParams, "".as_ptr());
-            //usvfsSetProcessDelay(testParams, 5);
             usvfsFreeParameters(testParams);
+        }
+    }
+
+    fn rawName() {
+        unsafe {
+            let p = usvfsCreateParameters();
+            let name = CString::new("").expect("Cstring");
+            usvfsSetInstanceName(p, name.as_ptr());
+            usvfsFreeParameters(p);
+        }
+    }
+    fn rawMode() {
+        unsafe {
+            let p = usvfsCreateParameters();
+            usvfsSetDebugMode(p, false);
+            usvfsFreeParameters(p);
+        }
+    }
+    fn rawLevel() {
+        unsafe {
+            let p = usvfsCreateParameters();
+            usvfsSetLogLevel(p, LogLevel::Debug);
+            usvfsFreeParameters(p);
+        }
+    }
+    fn rawType() {
+        unsafe {
+            let p = usvfsCreateParameters();
+            usvfsSetCrashDumpType(p, CrashDumpsType::Full);
+            usvfsFreeParameters(p);
+        }
+    }
+    fn rawPath() {
+        unsafe {
+            let p = usvfsCreateParameters();
+            let path = CString::new("").expect("CString failed");
+            usvfsSetCrashDumpPath(p, path.as_ptr());
+            usvfsFreeParameters(p);
+        }
+    }
+    fn rawDelay() {
+        unsafe {
+            let p = usvfsCreateParameters();
+            usvfsSetProcessDelay(p, 5);
+            usvfsFreeParameters(p);
         }
     }
 
@@ -384,18 +429,18 @@ mod tests {
         testParams.free_parameters();
     }
 
-    //#[test]
-    //fn startAndStop() {
-    //    let testParams = Parameters::new();
-    //    testParams.set_instance_name("test");
-    //    testParams.set_debug_mode(false);
-    //    testParams.set_log_level(LogLevel::Debug);
-    //    testParams.set_crash_dumps_type(CrashDumpsType::Nil);
-    //    testParams.set_crash_dumps_path("");
-    //
-    //    init_logging(false);
-    //    create_vfs(testParams).expect("Failed to create VFS");
-    //    disconnect_vfs();
-    //    testParams.free_parameters();
-    //}
+    #[test]
+    fn startAndStop() {
+        let testParams = Parameters::new();
+        testParams.set_instance_name("test");
+        testParams.set_debug_mode(false);
+        testParams.set_log_level(LogLevel::Debug);
+        testParams.set_crash_dumps_type(CrashDumpsType::Nil);
+        testParams.set_crash_dumps_path("");
+
+        init_logging(false);
+        create_vfs(testParams).expect("Failed to create VFS");
+        disconnect_vfs();
+        testParams.free_parameters();
+    }
 }
