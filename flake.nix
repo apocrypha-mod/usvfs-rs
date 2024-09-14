@@ -61,6 +61,7 @@
             pkgsCross.mingwW64.windows.pthreads
             wineWowPackages.stable
             rust-analyzer
+            rustfmt
             toolchain
           ];
 
