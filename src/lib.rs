@@ -6,11 +6,8 @@
 )]
 
 use std::{
-    ffi::{CStr, OsStr, OsString},
+    ffi::{CStr, OsString},
     fmt::{Display, Formatter},
-    mem::MaybeUninit,
-    os::windows::ffi::OsStrExt,
-    path::Path,
     ptr, time,
 };
 
@@ -58,12 +55,12 @@ pub const LINKFLAG_FAILIFSKIPPED: u32 = 0x00000010;
 
 /// Opaque type for usvfsParameters
 #[repr(C)]
-pub struct parameters {
+pub struct Parameters {
     _data: [u8; 0],
     _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
 }
 
-impl parameters {
+impl Parameters {
     fn new() -> *mut Self {
         unsafe { usvfsCreateParameters() }
     }
@@ -100,47 +97,59 @@ impl parameters {
     }
 }
 
-fn create_vfs(params: &parameters) -> Result<(), ()> {
-    unsafe { match usvfsCreateVFS(params) {
-        true => Ok(()),
-        false => Err(()),
-    }}
+pub fn create_vfs(params: &Parameters) -> Result<(), ()> {
+    unsafe {
+        match usvfsCreateVFS(params) {
+            true => Ok(()),
+            false => Err(()),
+        }
+    }
 }
 
-fn connect_vfs(params: &parameters) -> Result<(), ()> {
-    unsafe { match usvfsConnectVfs(params) {
-        true => Ok(()),
-        false => Err(()),
-    }}
+pub fn connect_vfs(params: &Parameters) -> Result<(), ()> {
+    unsafe {
+        match usvfsConnectVfs(params) {
+            true => Ok(()),
+            false => Err(()),
+        }
+    }
 }
 
-fn disconnect_vfs() {
+pub fn disconnect_vfs() {
     unsafe { usvfsDisconnectVFS() }
 }
 
-fn clear_virtual_mappings() {
+pub fn clear_virtual_mappings() {
     unsafe { usvfsClearVirtualMappings() };
 }
 
-fn virtually_link_file(source: &str, destination: &str, flags: u32) -> Result<(), ()> {
-    unsafe { match usvfsVirtualLinkFile(widen!(source), widen!(destination), flags) {
-        true => Ok(()),
-        false => Err(()),
-    }}
+pub fn virtually_link_file(source: &str, destination: &str, flags: u32) -> Result<(), ()> {
+    unsafe {
+        match usvfsVirtualLinkFile(widen!(source), widen!(destination), flags) {
+            true => Ok(()),
+            false => Err(()),
+        }
+    }
 }
 
-fn virtually_link_directory_static(source: &str, destination: &str, flags: u32) -> Result<(), ()> {
-    unsafe { match usvfsVirtualLinkDirectoryStatic(widen!(source), widen!(destination), flags) {
-        true => Ok(()),
-        false => Err(()),
-    }}
+pub fn virtually_link_directory_static(
+    source: &str,
+    destination: &str,
+    flags: u32,
+) -> Result<(), ()> {
+    unsafe {
+        match usvfsVirtualLinkDirectoryStatic(widen!(source), widen!(destination), flags) {
+            true => Ok(()),
+            false => Err(()),
+        }
+    }
 }
 
-// fn usvfsGetCurrentVFSName(buffer: *mut u8, size: size_t);
-// fn usvfsGetVFSProcessList(count: *mut size_t, processIDs: *mut u32) -> bool;
-// fn usvfsGetVFSProcessList2(cont: *mut size_t, buffer: *mut *mut u32) -> bool;
+pub fn get_current_VFS_name(buffer: &mut [u8]) {
+    unsafe { usvfsGetCurrentVFSName(buffer.as_mut_ptr(), buffer.len()) }
+}
 
-fn create_process_hooked(
+pub fn create_process_hooked(
     application_name: &str,
     command_line: &str,
     process_attributes: &mut SECURITY_ATTRIBUTES,
@@ -149,9 +158,9 @@ fn create_process_hooked(
     current_dir: &str,
     startup_information: &mut STARTUPINFOW,
     process_information: &mut PROCESS_INFORMATION,
-) -> bool {
+) -> Result<(), ()> {
     unsafe {
-        usvfsCreateProcessHooked(
+        match usvfsCreateProcessHooked(
             widen!(application_name),
             widen!(command_line).cast_mut(),
             process_attributes,
@@ -162,19 +171,82 @@ fn create_process_hooked(
             widen!(current_dir),
             startup_information,
             process_information,
-        )
+        ) {
+            true => Ok(()),
+            false => Err(()),
+        }
     }
 }
 
-fn init_logging(toLocal: bool) {
+pub fn init_logging(toLocal: bool) {
     unsafe { usvfsInitLogging(toLocal) }
 }
 
-fn get_log_message(dst: &mut [u8], blocking: bool) {
+pub fn get_log_message(dst: &mut [u8], blocking: bool) {
     unsafe {
         // TODO this bool should cause error handeling and return some kind of result
         _ = usvfsGetLogMessage(dst.as_mut_ptr(), &mut dst.len(), blocking)
     }
+}
+
+pub fn create_vfs_dump(buffer: &mut [u8]) -> Result<(), ()> {
+    unsafe {
+        match usvfsCreateVFSDump(buffer.as_mut_ptr(), &mut buffer.len()) {
+            true => Ok(()),
+            false => Err(()),
+        }
+    }
+}
+
+fn vec_utf16_from_str(string: &str) -> Vec<u16> {
+    let v = string.encode_utf16().collect();
+    v
+}
+
+pub fn blacklist_executable(executableName: &str) {
+    let mut v: Vec<u16> = vec_utf16_from_str(executableName);
+    unsafe { usvfsBlacklistExecutable(v.as_mut_ptr() as *mut u16) }
+}
+
+pub fn clear_executable_blacklist() {
+    unsafe { usvfsClearExecutableBlacklist() }
+}
+
+pub fn add_skip_file_suffix(fileSuffix: &str) {
+    let mut v: Vec<u16> = vec_utf16_from_str(fileSuffix);
+    unsafe { usvfsAddSkipFileSuffix(v.as_mut_ptr() as *mut u16) }
+}
+
+pub fn clear_skip_file_suffixes() {
+    unsafe { usvfsClearSkipFileSuffixes() }
+}
+
+pub fn add_skip_directory(directory: &str) {
+    let mut v: Vec<u16> = vec_utf16_from_str(directory);
+    unsafe { usvfsAddSkipDirectory(v.as_mut_ptr() as *mut u16) }
+}
+
+pub fn clear_skip_directories() {
+    unsafe { usvfsClearSkipDirectories() }
+}
+
+pub fn force_load_library(processName: &str, libraryPath: &str) {
+    let mut nameV = vec_utf16_from_str(processName);
+    let mut pathV = vec_utf16_from_str(libraryPath);
+    unsafe {
+        usvfsForceLoadLibrary(
+            nameV.as_mut_ptr() as *mut u16,
+            pathV.as_mut_ptr() as *mut u16,
+        )
+    }
+}
+
+pub fn clear_library_force_loads() {
+    unsafe { usvfsClearLibraryForceLoads() }
+}
+
+fn print_debug_info() {
+    unsafe { usvfsPrintDebugInfo() }
 }
 
 #[repr(C)]
@@ -217,19 +289,18 @@ impl Display for CrashDumpsType {
     }
 }
 
-// TODO docs
 #[link(name = "usvfs_x64")]
 extern "C" {
-    fn usvfsCreateParameters() -> *mut parameters;
-    fn usvfsDupeParameters(p: *mut parameters) -> *mut parameters;
-    fn usvfsCopyParameters(source: *const parameters, dest: *mut parameters);
-    fn usvfsFreeParameters(p: *mut parameters);
-    fn usvfsSetInstanceName(p: *mut parameters, name: *const u8);
-    fn usvfsSetDebugMode(p: *mut parameters, debugMode: bool);
-    fn usvfsSetLogLevel(p: *mut parameters, level: LogLevel);
-    fn usvfsSetCrashDumpType(p: *mut parameters, dumpType: CrashDumpsType);
-    fn usvfsSetCrashDumpPath(p: *mut parameters, path: *const u8);
-    fn usvfsSetProcessDelay(p: *mut parameters, milliseconds: c_int);
+    fn usvfsCreateParameters() -> *mut Parameters;
+    fn usvfsDupeParameters(p: *const Parameters) -> *mut Parameters;
+    fn usvfsCopyParameters(source: *const Parameters, dest: *mut Parameters);
+    fn usvfsFreeParameters(p: *mut Parameters);
+    fn usvfsSetInstanceName(p: *mut Parameters, name: *const u8);
+    fn usvfsSetDebugMode(p: *mut Parameters, debugMode: bool);
+    fn usvfsSetLogLevel(p: *mut Parameters, level: LogLevel);
+    fn usvfsSetCrashDumpType(p: *mut Parameters, dumpType: CrashDumpsType);
+    fn usvfsSetCrashDumpPath(p: *mut Parameters, path: *const u8);
+    fn usvfsSetProcessDelay(p: *mut Parameters, milliseconds: c_int);
 
     fn usvfsLogLevelToString(lv: LogLevel) -> *const i8;
     fn usvfsCrashDumpTypeToString(t: CrashDumpsType) -> *const i8;
@@ -241,12 +312,14 @@ extern "C" {
         destination: *const u16,
         flags: u32,
     ) -> bool;
-    fn usvfsConnectVfs(p: *const parameters) -> bool;
-    fn usvfsCreateVFS(p: *const parameters) -> bool;
+    fn usvfsConnectVfs(p: *const Parameters) -> bool;
+    fn usvfsCreateVFS(p: *const Parameters) -> bool;
     fn usvfsDisconnectVFS();
     fn usvfsGetCurrentVFSName(buffer: *mut u8, size: size_t);
-    fn usvfsGetVFSProcessList(count: *mut size_t, processIDs: *mut u32) -> bool;
-    fn usvfsGetVFSProcessList2(cont: *mut size_t, buffer: *mut *mut u32) -> bool;
+    /// unsafe
+    pub fn usvfsGetVFSProcessList(count: *mut size_t, processIDs: *mut u32) -> bool;
+    /// unsafe
+    pub fn usvfsGetVFSProcessList2(cont: *mut size_t, buffer: *mut *mut u32) -> bool;
     fn usvfsCreateProcessHooked(
         lpApplicationName: *const u16,
         lpCommandLine: *mut u16,
@@ -272,6 +345,6 @@ extern "C" {
     fn usvfsPrintDebugInfo();
     fn usvfsInitLogging(toLocal: bool);
 
-    fn usvfsUpdateParameters(p: *mut parameters);
+    fn usvfsUpdateParameters(p: *mut Parameters);
     fn usvfsVersionString() -> *mut u8;
 }
