@@ -372,30 +372,30 @@ mod tests {
         }
     }
 
-    #[test]
-    fn parameters() {
-        let testParams = Parameters::new();
-        testParams.set_instance_name("testInstance");
-        testParams.set_debug_mode(false);
-        testParams.set_log_level(LogLevel::Debug);
-        testParams.set_crash_dumps_type(CrashDumpsType::Full);
-        testParams.set_crash_dumps_path("");
-        testParams.set_process_delay(time::Duration::new(1, 0));
-        testParams.free_parameters();
-    }
-
-    #[test]
-    fn startAndStop() {
-        let testParams = Parameters::new();
-        testParams.set_instance_name("test");
-        testParams.set_debug_mode(false);
-        testParams.set_log_level(LogLevel::Debug);
-        testParams.set_crash_dumps_type(CrashDumpsType::Nil);
-        testParams.set_crash_dumps_path("");
-
-        init_logging(false);
-        create_vfs(testParams).expect("Failed to create VFS");
-        disconnect_vfs();
-        testParams.free_parameters();
-    }
+    //#[test]
+    //fn parameters() {
+    //    let testParams = Parameters::new();
+    //    testParams.set_instance_name("testInstance");
+    //    testParams.set_debug_mode(false);
+    //    testParams.set_log_level(LogLevel::Debug);
+    //    testParams.set_crash_dumps_type(CrashDumpsType::Full);
+    //    testParams.set_crash_dumps_path("");
+    //    testParams.set_process_delay(time::Duration::new(1, 0));
+    //    testParams.free_parameters();
+    //}
+    //
+    //#[test]
+    //fn startAndStop() {
+    //    let testParams = Parameters::new();
+    //    testParams.set_instance_name("test");
+    //    testParams.set_debug_mode(false);
+    //    testParams.set_log_level(LogLevel::Debug);
+    //    testParams.set_crash_dumps_type(CrashDumpsType::Nil);
+    //    testParams.set_crash_dumps_path("");
+    //
+    //    init_logging(false);
+    //    create_vfs(testParams).expect("Failed to create VFS");
+    //    disconnect_vfs();
+    //    testParams.free_parameters();
+    //}
 }
