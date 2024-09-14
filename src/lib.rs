@@ -27,6 +27,15 @@ macro_rules! widen {
     }};
 }
 
+macro_rules! widen_mut {
+    ( $str:ident ) => {{
+        let mut vector: Vec<u16> = $str.encode_utf16().collect();
+        // push a null terminator
+        vector.push(0x00);
+        vector.as_mut_ptr()
+    }};
+}
+
 // USVFS Bindings
 
 /// if set, linking fails in case of an error
@@ -55,6 +64,13 @@ pub const LINKFLAG_RECURSIVE: u32 = 0x00000008;
 pub const LINKFLAG_FAILIFSKIPPED: u32 = 0x00000010;
 
 /// Opaque type for usvfsParameters
+/// This type stores information about the VFS to be
+/// created. To create a VFS, create a new Parameters
+/// and run the set functions on it to set properties
+/// since the struct is opaque, it can only be interacted
+/// with by these functions. The function free_parameters()
+/// **MUST** be run after use since we must tell the C++
+/// library to deallocate it which cannot be handled from Rust
 #[repr(C)]
 pub struct Parameters {
     _data: [u8; 0],
@@ -62,10 +78,12 @@ pub struct Parameters {
 }
 
 impl Parameters {
+    /// Creates a new Parameters
     fn new() -> *mut Self {
         unsafe { usvfsCreateParameters() }
     }
 
+    /// set the name for the VFS instance
     fn set_instance_name(self: *mut Parameters, name: &str) {
         unsafe {
             let cName = CString::new(name).expect("Invalid C-String");
@@ -73,18 +91,23 @@ impl Parameters {
         }
     }
 
+    /// set whether the VFS should output debug information
     fn set_debug_mode(self: *mut Parameters, debug_mode: bool) {
         unsafe { usvfsSetDebugMode(self, debug_mode) }
     }
 
+    /// set the VFS log level
     fn set_log_level(self: *mut Parameters, log_level: LogLevel) {
         unsafe { usvfsSetLogLevel(self, log_level) }
     }
 
+    /// set the VFS crash dumps type
     fn set_crash_dumps_type(self: *mut Parameters, dump_type: CrashDumpsType) {
         unsafe { usvfsSetCrashDumpType(self, dump_type) }
     }
 
+    /// set the path for crash dumps. An empty string "" dumps to
+    /// the current working directory
     fn set_crash_dumps_path(self: *mut Parameters, path: &str) {
         unsafe {
             let cPath = CString::new(path).expect("Invalid C-String");
@@ -92,6 +115,7 @@ impl Parameters {
         }
     }
 
+    /// set the amount of time to delay the process
     fn set_process_delay(self: *mut Parameters, time: time::Duration) {
         unsafe {
             usvfsSetProcessDelay(
@@ -103,11 +127,24 @@ impl Parameters {
         };
     }
 
+    /// free the parameter's memory in C. Not calling this is a memory leak!!!
+    /// Rust's automatic destructor: the drop trait cannot be used on memory that
+    /// Rust does not own (ie only has a pointer to), so this is REQUIRED
+    /// only free parameters after closing any associated VFSs
     fn free_parameters(self: *mut Parameters) {
         unsafe { usvfsFreeParameters(self) }
     }
 }
 
+/// creates a new vfs from a parameters struct. You can think of
+/// the VFS as a sperate thread or process which you communicate
+/// to with the set of functions here.
+///
+/// This is similar to ConnectVFS except it guarantees
+/// the vfs is reset before use.
+///
+/// Please note that you can only be connected to one vfs, so this will silently disconnect
+/// from a previous vfs.
 pub fn create_vfs(params: *const Parameters) -> Result<(), ()> {
     unsafe {
         match usvfsCreateVFS(params) {
@@ -117,6 +154,10 @@ pub fn create_vfs(params: *const Parameters) -> Result<(), ()> {
     }
 }
 
+/// connect to a virtual filesystem as a controller, without hooking the calling process.
+///
+/// Please note that you can only be connected to one vfs, so this will silently disconnect
+/// from a previous vfs.
 pub fn connect_vfs(params: *const Parameters) -> Result<(), ()> {
     unsafe {
         match usvfsConnectVfs(params) {
@@ -126,14 +167,29 @@ pub fn connect_vfs(params: *const Parameters) -> Result<(), ()> {
     }
 }
 
+/// disconnect from a virtual filesystem. This removes hooks if necessary
 pub fn disconnect_vfs() {
     unsafe { usvfsDisconnectVFS() }
 }
 
+/// removes all virtual mappings
 pub fn clear_virtual_mappings() {
     unsafe { usvfsClearVirtualMappings() };
 }
 
+/// link a file virtually
+/// the directory the destination file resides in has to exist - at least virtually
+///
+/// Virtual operations:
+///   - link file
+///   - link directory (empty)
+///   - link directory (static)
+///   - link directory (dynamic)
+///   - delete file
+///   - delete directory
+/// Maybe:
+///   - rename/move (= copy + delete)
+///   - copy-on-write semantics (changes to files are done in a separate copy of the file, the original is kept on disc but hidden)
 pub fn virtually_link_file(source: &str, destination: &str, flags: u32) -> Result<(), ()> {
     unsafe {
         match usvfsVirtualLinkFile(widen!(source), widen!(destination), flags) {
@@ -143,6 +199,20 @@ pub fn virtually_link_file(source: &str, destination: &str, flags: u32) -> Resul
     }
 }
 
+/// link a directory virtually. This static variant recursively links all files individually, change notifications
+/// are used to update the information.
+/// failIfExists if true, this call fails if the destination directory exists (virtually or physically)
+///
+/// Virtual operations:
+///   - link file
+///   - link directory (empty)
+///   - link directory (static)
+///   - link directory (dynamic)
+///   - delete file
+///   - delete directory
+/// Maybe:
+///   - rename/move (= copy + delete)
+///   - copy-on-write semantics (changes to files are done in a separate copy of the file, the original is kept on disc but hidden)
 pub fn virtually_link_directory_static(
     source: &str,
     destination: &str,
@@ -156,10 +226,15 @@ pub fn virtually_link_directory_static(
     }
 }
 
+/// gets the instance name of the current VFS and places it into buffer
 pub fn get_current_VFS_name(buffer: &mut [u8]) {
     unsafe { usvfsGetCurrentVFSName(buffer.as_mut_ptr(), buffer.len()) }
 }
 
+/// spawn a new process that can see the virtual file system. The signature is identical to CreateProcess
+/// but a bit more rusty. Still requires windows stuff.
+/// I will impliment some way to pass these to C as null, since in many cases the user does not
+/// care to have these back.
 pub fn create_process_hooked(
     application_name: &str,
     command_line: &str,
@@ -189,10 +264,15 @@ pub fn create_process_hooked(
     }
 }
 
+/// begin logging on the VFS
 pub fn init_logging(toLocal: bool) {
     unsafe { usvfsInitLogging(toLocal) }
 }
 
+/// get a single log message
+/// not sure if this currently works upstream
+/// should take a destination buffer for the log message
+/// set blocking to false since true isn't implimented upstream
 pub fn get_log_message(dst: &mut [u8], blocking: bool) {
     unsafe {
         // TODO this bool should cause error handeling and return some kind of result
@@ -200,62 +280,72 @@ pub fn get_log_message(dst: &mut [u8], blocking: bool) {
     }
 }
 
-pub fn create_vfs_dump(buffer: &mut [u8]) -> Result<(), ()> {
+/// retrieves a readable representation of the vfs tree
+/// the buffer to write to can be null if you only want to determine the required buffer size
+/// size is a pointer to the variable that contains the buffer and is updated to the size on return
+/// I'm not sure how exactly this will work from Rust, currently unstable and not tested
+pub fn create_vfs_dump(buffer: &mut [u8], size: *mut usize) -> Result<(), ()> {
     unsafe {
-        match usvfsCreateVFSDump(buffer.as_mut_ptr(), &mut buffer.len()) {
+        match usvfsCreateVFSDump(buffer.as_mut_ptr(), size) {
             true => Ok(()),
             false => Err(()),
         }
     }
 }
 
-fn vec_utf16_from_str(string: &str) -> Vec<u16> {
-    let v = string.encode_utf16().collect();
-    v
-}
-
+/// add an executable to the blacklist so it doesn't get exposed
+/// to the virtual file system
 pub fn blacklist_executable(executableName: &str) {
-    let mut v: Vec<u16> = vec_utf16_from_str(executableName);
-    unsafe { usvfsBlacklistExecutable(v.as_mut_ptr() as *mut u16) }
+    unsafe { usvfsBlacklistExecutable(widen_mut!(executableName)) }
 }
 
+/// clears the executable blacklist
 pub fn clear_executable_blacklist() {
     unsafe { usvfsClearExecutableBlacklist() }
 }
 
+/// adds a file suffix to a list to skip during file linking
+/// .txt and some_file.txt are both valid file suffixes,
+/// not to be confused with file extensions
 pub fn add_skip_file_suffix(fileSuffix: &str) {
-    let mut v: Vec<u16> = vec_utf16_from_str(fileSuffix);
-    unsafe { usvfsAddSkipFileSuffix(v.as_mut_ptr() as *mut u16) }
+    unsafe { usvfsAddSkipFileSuffix(widen_mut!(fileSuffix)) }
 }
 
+/// clears the file suffix skip-list
 pub fn clear_skip_file_suffixes() {
     unsafe { usvfsClearSkipFileSuffixes() }
 }
 
+/// Adds a directory name that will be skipped during directory
+/// linking. Not a path.
+///
+/// Any directory matching the name will be
+/// skipped, regardless of it's path.
+///
+/// For example if .git is added, any sub-path or root-path
+/// containing a .git directory will have the .git directly
+/// skipped during directory linking.
 pub fn add_skip_directory(directory: &str) {
-    let mut v: Vec<u16> = vec_utf16_from_str(directory);
-    unsafe { usvfsAddSkipDirectory(v.as_mut_ptr() as *mut u16) }
+    unsafe { usvfsAddSkipDirectory(widen_mut!(directory)) }
 }
 
+/// clears the directory skip-list
 pub fn clear_skip_directories() {
     unsafe { usvfsClearSkipDirectories() }
 }
 
+/// adds a library to be force loaded when the given process is injected
 pub fn force_load_library(processName: &str, libraryPath: &str) {
-    let mut nameV = vec_utf16_from_str(processName);
-    let mut pathV = vec_utf16_from_str(libraryPath);
-    unsafe {
-        usvfsForceLoadLibrary(
-            nameV.as_mut_ptr() as *mut u16,
-            pathV.as_mut_ptr() as *mut u16,
-        )
-    }
+    unsafe { usvfsForceLoadLibrary(widen_mut!(processName), widen_mut!(libraryPath)) }
 }
 
+/// clears all previous calls to force_load_library()
 pub fn clear_library_force_loads() {
     unsafe { usvfsClearLibraryForceLoads() }
 }
 
+/// print debugging info about the vfs. The format is currently not
+/// fixed and may change between usvfs versions
 fn print_debug_info() {
     unsafe { usvfsPrintDebugInfo() }
 }
@@ -372,6 +462,7 @@ mod tests {
         }
     }
 
+    #[test]
     fn rawName() {
         unsafe {
             let p = usvfsCreateParameters();
@@ -380,6 +471,8 @@ mod tests {
             usvfsFreeParameters(p);
         }
     }
+
+    #[test]
     fn rawMode() {
         unsafe {
             let p = usvfsCreateParameters();
@@ -387,6 +480,8 @@ mod tests {
             usvfsFreeParameters(p);
         }
     }
+
+    #[test]
     fn rawLevel() {
         unsafe {
             let p = usvfsCreateParameters();
@@ -394,6 +489,8 @@ mod tests {
             usvfsFreeParameters(p);
         }
     }
+
+    #[test]
     fn rawType() {
         unsafe {
             let p = usvfsCreateParameters();
@@ -401,6 +498,8 @@ mod tests {
             usvfsFreeParameters(p);
         }
     }
+
+    #[test]
     fn rawPath() {
         unsafe {
             let p = usvfsCreateParameters();
@@ -409,12 +508,37 @@ mod tests {
             usvfsFreeParameters(p);
         }
     }
+
+    #[test]
     fn rawDelay() {
         unsafe {
             let p = usvfsCreateParameters();
             usvfsSetProcessDelay(p, 5);
             usvfsFreeParameters(p);
         }
+    }
+
+    #[test]
+    fn stringRepr() {
+        let debug = LogLevel::Debug;
+        let info = LogLevel::Info;
+        let warning = LogLevel::Warning;
+        let error = LogLevel::Error;
+
+        let nil = CrashDumpsType::Nil;
+        let mini = CrashDumpsType::Mini;
+        let data = CrashDumpsType::Data;
+        let full = CrashDumpsType::Full;
+
+        assert_eq!(debug.to_string(), "debug");
+        assert_eq!(info.to_string(), "info");
+        assert_eq!(warning.to_string(), "warning");
+        assert_eq!(error.to_string(), "error");
+
+        assert_eq!(nil.to_string(), "none");
+        assert_eq!(mini.to_string(), "mini");
+        assert_eq!(data.to_string(), "data");
+        assert_eq!(full.to_string(), "full");
     }
 
     #[test]
