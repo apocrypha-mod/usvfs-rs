@@ -79,12 +79,12 @@ pub struct Parameters {
 
 impl Parameters {
     /// Creates a new Parameters
-    fn new() -> *mut Self {
+    pub fn new() -> *mut Self {
         unsafe { usvfsCreateParameters() }
     }
 
     /// set the name for the VFS instance
-    fn set_instance_name(self: *mut Parameters, name: &str) {
+    pub fn set_instance_name(self: *mut Parameters, name: &str) {
         unsafe {
             let cName = CString::new(name).expect("Invalid C-String");
             usvfsSetInstanceName(self, cName.as_ptr())
@@ -92,23 +92,23 @@ impl Parameters {
     }
 
     /// set whether the VFS should output debug information
-    fn set_debug_mode(self: *mut Parameters, debug_mode: bool) {
+    pub fn set_debug_mode(self: *mut Parameters, debug_mode: bool) {
         unsafe { usvfsSetDebugMode(self, debug_mode) }
     }
 
     /// set the VFS log level
-    fn set_log_level(self: *mut Parameters, log_level: LogLevel) {
+    pub fn set_log_level(self: *mut Parameters, log_level: LogLevel) {
         unsafe { usvfsSetLogLevel(self, log_level) }
     }
 
     /// set the VFS crash dumps type
-    fn set_crash_dumps_type(self: *mut Parameters, dump_type: CrashDumpsType) {
+    pub fn set_crash_dumps_type(self: *mut Parameters, dump_type: CrashDumpsType) {
         unsafe { usvfsSetCrashDumpType(self, dump_type) }
     }
 
     /// set the path for crash dumps. An empty string "" dumps to
     /// the current working directory
-    fn set_crash_dumps_path(self: *mut Parameters, path: &str) {
+    pub fn set_crash_dumps_path(self: *mut Parameters, path: &str) {
         unsafe {
             let cPath = CString::new(path).expect("Invalid C-String");
             usvfsSetCrashDumpPath(self, cPath.as_ptr())
@@ -116,7 +116,7 @@ impl Parameters {
     }
 
     /// set the amount of time to delay the process
-    fn set_process_delay(self: *mut Parameters, time: time::Duration) {
+    pub fn set_process_delay(self: *mut Parameters, time: time::Duration) {
         unsafe {
             usvfsSetProcessDelay(
                 self,
@@ -131,7 +131,7 @@ impl Parameters {
     /// Rust's automatic destructor: the drop trait cannot be used on memory that
     /// Rust does not own (ie only has a pointer to), so this is REQUIRED
     /// only free parameters after closing any associated VFSs
-    fn free_parameters(self: *mut Parameters) {
+    pub fn free_parameters(self: *mut Parameters) {
         unsafe { usvfsFreeParameters(self) }
     }
 }
