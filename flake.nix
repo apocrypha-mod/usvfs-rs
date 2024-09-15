@@ -16,7 +16,7 @@
           inherit system;
         };
 
-        target = "x86_64-pc-windows-gnu";
+        target = "x86_64-pc-windows-msvc";
 
         toolchain = with fenix.packages.${system}; combine [
           minimal.cargo
@@ -29,9 +29,9 @@
           rustc = toolchain;
         };
       in rec {
-        defaultPackage = packages.x86_64-pc-windows-gnu;
+        defaultPackage = packages.x86_64-pc-windows-msvc;
 
-        packages.x86_64-pc-windows-gnu = naersk'.buildPackage {
+        packages.x86_64-pc-windows-msvc = naersk'.buildPackage {
           src = ./.;
           strctDeps = true;
         };
@@ -47,9 +47,9 @@
 
         doCheck = true;
 
-        CARGO_BUILD_TARGET = "x86_64-pc-windows-gnu";
+        CARGO_BUILD_TARGET = "x86_64-pc-windows-msvc";
 
-        CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUNNER = pkgs.writeScript "wine-wrapper" ''
+        CARGO_TARGET_X86_64_PC_WINDOWS_MSVC = pkgs.writeScript "wine-wrapper" ''
           export WINEPREFIX="$(mktemp -d)"
           exec wine 64 $@
         '';
